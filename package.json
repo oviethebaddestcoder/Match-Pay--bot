@@ -1,0 +1,44 @@
+{
+  "name": "matchpay-backend",
+  "version": "0.1.0",
+  "description": "MatchPay - Monnify-powered order reconciliation bot (NestJS backend)",
+  "scripts": {
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:prod": "node dist/main",
+    "test:fees": "ts-node test/fee.util.test.ts",
+    "test:concurrency": "ts-node test/balance-concurrency.test.ts",
+    "test": "npm run test:fees && npm run test:concurrency"
+  },
+  "dependencies": {
+    "@nestjs/common": "^10.4.0",
+    "@nestjs/config": "^3.2.3",
+    "@nestjs/core": "^10.4.0",
+    "@nestjs/platform-express": "^10.4.0",
+    "@nestjs/platform-socket.io": "^10.4.0",
+    "@nestjs/typeorm": "^10.0.2",
+    "@nestjs/websockets": "^10.4.0",
+    "@nestjs/axios": "^3.0.2",
+    "@whiskeysockets/baileys": "^6.7.9",
+    "@hapi/boom": "^10.0.1",
+    "axios": "^1.7.4",
+    "bcrypt": "^5.1.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "better-sqlite3": "^11.3.0",
+    "qrcode-terminal": "^0.12.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "socket.io": "^4.7.5",
+    "typeorm": "^0.3.20",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^10.4.5",
+    "@types/node": "^20.14.0",
+    "@types/bcrypt": "^5.0.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0"
+  }
+}

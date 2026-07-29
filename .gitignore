@@ -1,0 +1,7 @@
+
+# Only relevant if you ever re-run the font/vendor npm steps locally
+node_modules/
+npm-debug.log*
+
+.env
+.env.example
