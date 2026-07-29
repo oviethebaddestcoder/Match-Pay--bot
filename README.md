@@ -63,68 +63,6 @@ over — they resume exactly where they left off.
    refunds the wallet a second and final time if it wasn't already refunded
    at the initiation step.
 
-### What this is, and isn't
-
-This follows real fintech patterns (hashed PINs, locked settlement accounts,
-transactional balance locking, signed webhooks, retry-safe idempotent
-references). It has **not** been through a security audit or penetration
-test, and a few things are explicitly out of scope for a hackathon build:
-rate-limiting withdrawal attempts across time (only consecutive PIN failures
-are handled), device/session binding for the WhatsApp bot itself (Baileys
-trusts whatever session is authenticated), and admin tooling to clear a
-locked account (currently a manual database update). Worth being upfront
-about these if a judge asks "is this production-ready" — the honest answer
-is "the money-movement logic follows the right patterns; the operational
-tooling around it (support flows, monitoring, audits) is the normal
-post-hackathon work."
-
-## Code review notes (what a deep pass caught)
-
-Before handing this off, I went through every file and ran real tests
-against the fixes rather than just eyeballing the code. Worth knowing what
-was actually wrong before this point, in case any of it rings a bell for
-your own changes later:
-
-- **Race condition on payment confirmation.** `Orders.markPaid` used to
-  read-then-write the order status - two concurrent webhook deliveries
-  (Monnify does retry) could both pass the "not already paid" check and
-  double-credit a seller's wallet. Fixed with the same atomic
-  conditional-`UPDATE` pattern used for withdrawals. Same bug existed in
-  `Withdrawals.markCompleted` and is fixed the same way.
-- **Duplicate WhatsApp notifications.** Following from the above, a retried
-  webhook would previously message the seller "payment received" twice.
-  Both handlers now only notify when they were the delivery that actually
-  caused the transition.
-- **Webhook signature check wasn't timing-safe.** Was a plain `===` string
-  comparison, which leaks timing information. Switched to
-  `crypto.timingSafeEqual`.
-- **Unauthenticated REST API.** `OrdersController` (`POST/GET /orders`) had
-  no auth at all - anyone who found the endpoint could create orders
-  attributed to any `sellerId`, or list every order (including payment
-  references) across every seller. Added `ApiKeyGuard`; set `ADMIN_API_KEY`
-  in `.env` before deploying anywhere reachable. The WhatsApp bot itself
-  doesn't use this - a seller's identity there is their verified WhatsApp
-  number.
-- **SQLite-specific bugs from the database swap** (see below) - `enum`
-  columns aren't supported at all by SQLite (would have failed to boot),
-  and `pessimistic_write` row locks aren't supported either (would have
-  crashed on the first withdrawal). Both fixed; the second fix (atomic
-  conditional `UPDATE`) turned out to be strictly better than the lock-based
-  approach it replaced.
-- **No validation that the paid amount matches the order amount.** An
-  underpayment would previously be silently accepted as fully paid. Now
-  logged loudly for manual review (doesn't block the confirmation, since a
-  seller still needs to know money arrived - but the discrepancy is visible).
-- A few unused/dead code paths removed (`setPin`,
-  `verifyDisbursementWebhookSignature`), a misleading "1 minute" label for
-  already-expired orders fixed to say "expired", and a stray empty
-  directory from an early setup command cleaned up.
-
-What I did NOT find a way to test from this environment: the actual Monnify
-API calls (network access here can't reach Monnify) and the WhatsApp
-message flow end-to-end (needs a live device pairing). Everything else
-- the fee math, the concurrency safety, the full TypeScript compile - is
-verified above, not just asserted.
 
 ## Monetization
 
@@ -232,23 +170,6 @@ relying on Baileys' built-in default. If you still hit this after pulling
 the fix: delete `./whatsapp-auth` and restart (forces a completely fresh
 pairing), and confirm your network isn't blocking outbound WebSocket
 connections to WhatsApp's servers (some corporate/campus networks do).
-
-## Live demo script (what to actually show judges)
-
-1. On your phone, message the bot for the first time — it walks you through
-   onboarding (business name, email, bank selection, account verification,
-   PIN setup). Do this once, before you're on stage.
-2. During the demo, type: `new order Judge | 100`
-3. Bot replies instantly with a real Monnify account number.
-4. Have the judge (or a second phone) transfer ₦100 to that account.
-5. Within ~1 second: the bot pushes "💰 Payment received!" with the fee
-   breakdown and new balance into the same chat.
-6. Type `withdraw 90`, enter your PIN when asked.
-7. Bot confirms the withdrawal was initiated, then a second message confirms
-   completion once Monnify's disbursement webhook fires.
-
-That's onboarding → payment → reconciliation → payout, all inside one chat
-thread, in well under a minute of demo time.
 
 ## Project structure
 
